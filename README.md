@@ -1,10 +1,14 @@
 # Financial Assistant Chatbot with LLM Agents and RAG
 
+Streamlit: https://financial-assistant-chatbot.streamlit.app/
+
 ## ℹ️ About
 
 Financial Assistant Chatbot with LLM Agents and RAG is an app that helps you get clear, accurate answers to your financial questions. 
 Just type your question, and the assistant will provide smart, helpful responses in real time.
-                    
+
+https://github.com/user-attachments/assets/7d5df80d-b13d-492c-9549-d83a5cb98657
+
 ## 🛠️ Features
                     
 - 🏢 Company Overview
