@@ -43,7 +43,7 @@ Just type your question, and the assistant will provide smart, helpful responses
   pip install -r requirements.txt
   ```
 
-*. Run Streamlit app using the following command in the terminal
+* Run Streamlit app using the following command in the terminal
   
   ```bash
   streamlit run app.py
