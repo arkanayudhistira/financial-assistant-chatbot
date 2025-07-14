@@ -1,6 +1,6 @@
 import json
 import requests
-from datetime import date
+from datetime import datetime
 import streamlit as st
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -10,18 +10,52 @@ from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 
+SECTORS_API_KEY = st.secrets["SECTORS_API_KEY"]
+GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+
 
 def retrieve_from_endpoint(url: str) -> dict:
-    SECTORS_API_KEY = st.secrets["SECTORS_API_KEY"]
+    """
+    A robust, reusable helper function to perform GET requests.
+    """
+    
     headers = {"Authorization": SECTORS_API_KEY}
 
     try:
         response = requests.get(url, headers=headers)
         response.raise_for_status()
+
         data = response.json()
+
+        return data
+
     except requests.exceptions.HTTPError as err:
-        raise SystemExit(err)
-    return json.dumps(data)
+        return {
+            "error": f"HTTPError {err.response.status_code} - {err.response.reason}",
+            "url": url,
+            "detail": err.response.text
+        }
+    
+    except Exception as e:
+        return {
+            "error": f"Unexpected error: {type(e).__name__} - {str(e)}",
+            "url": url
+        }
+
+
+@tool
+def get_company_overview(stock: str) -> dict:
+    """
+    Get company overview
+    
+    @param stock: The stock symbol of the company
+    @return: The company overview
+    """
+
+    url = f"https://api.sectors.app/v1/company/report/{stock}/?sections=overview"
+
+    return retrieve_from_endpoint(url)
+
 
 @tool
 def get_top_companies_by_tx_volume(start_date: str, end_date: str, top_n: int = 5) -> dict:
@@ -42,7 +76,7 @@ def get_daily_tx(stock: str, start_date: str, end_date: str) -> list[dict]:
     """
     Get daily transaction for a stock
 
-    @param stock: The stock symbol of the company
+    @param stock: The stock 4 letter symbol of the company
     @param start_date: The start date in YYYY-MM-DD format
     @param end_date: The end date in YYYY-MM-DD format
     @return: Daily transaction data of a given ticker for a certain interval
@@ -51,29 +85,18 @@ def get_daily_tx(stock: str, start_date: str, end_date: str) -> list[dict]:
 
     return retrieve_from_endpoint(url)
 
-@tool
-def get_company_overview(stock: str) -> dict:
-    """
-    Get company overview
-    
-    @param stock: The stock symbol of the company
-    @return: The company overview
-    """
-
-    url = f"https://api.sectors.app/v1/company/report/{stock}/?sections=overview"
-
-    return retrieve_from_endpoint(url)
-
 
 @tool
 def get_top_companies_ranked(dimension: str, top_n: int, year: int) -> list[dict]:
     """
-    Return a list of top companies (symbol) based on certain dimension (dividend yield, total dividend, revenue, earnings, market cap,...)
+    Return a list of top companies (symbol) based on certain dimension 
+    (dividend yield, total dividend, revenue, earnings, market cap,...)
 
-    @param dimension: The dimension to rank the companies by, one of: dividend_yield, total_dividend, revenue, earnings, market_cap, ...
+    @param dimension: The dimension to rank the companies by, one of: 
+    "dividend_yield", "total_dividend", "revenue", "earnings", "market_cap", ...
+
     @param top_n: Number of stocks to show
     @param year: Year of ranking, always show the most recent full calendar year that has ended
-
     @return: A list of top tickers in a given year based on certain classification
     """
 
@@ -82,8 +105,8 @@ def get_top_companies_ranked(dimension: str, top_n: int, year: int) -> list[dict
     return retrieve_from_endpoint(url)
 
 def get_finance_agent():
-    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
 
+    # Defined Tools
     tools = [
         get_company_overview,
         get_top_companies_by_tx_volume,
@@ -91,6 +114,7 @@ def get_finance_agent():
         get_top_companies_ranked
     ]
 
+    # Create the Prompt Template
     prompt = ChatPromptTemplate.from_messages(
         [
             (
@@ -102,7 +126,7 @@ def get_finance_agent():
                 corresponding values for each name. If the volume was about a single day, 
                 the start and end parameter should be the same. Note that the endpoint for 
                 performance since IPO has only one required parameter, which is the stock. 
-                Today's date is {date.today().strftime("%Y-%m-%d")}
+                Today's date is {datetime.today().strftime("%Y-%m-%d")}
                 """
             ),
             MessagesPlaceholder(variable_name="chat_history"),
@@ -111,15 +135,18 @@ def get_finance_agent():
         ]
     )
 
+    # Initializing the LLM
     llm = ChatGroq(
         temperature=0,
         model_name="llama-3.3-70b-versatile",
         groq_api_key=GROQ_API_KEY,
     )
 
+    # Create the Agent and AgentExecutor
     agent = create_tool_calling_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
 
+    # Add Memory to the AgentExecutor
     def get_session_history(session_id: str):
 
         return StreamlitChatMessageHistory(key=session_id)

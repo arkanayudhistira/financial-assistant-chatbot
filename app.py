@@ -62,10 +62,10 @@ for message in chat_history.messages:
 prompt = st.chat_input("Ask your question here!")
 
 if prompt:
-    with st.chat_message("user"):
+    with st.chat_message("human"):
         st.markdown(prompt)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("ai"):
         response = agent_executor.invoke({"input": prompt},
                                          config={"configurable": {"session_id": session_id}})
         st.markdown(response['output'])
