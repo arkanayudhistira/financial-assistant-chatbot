@@ -2,6 +2,8 @@ import json
 import requests
 from datetime import datetime
 import streamlit as st
+import pandas as pd
+import os
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_groq import ChatGroq
@@ -9,10 +11,15 @@ from langchain_core.tools import tool
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
+from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
+
+from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+from langchain_community.document_loaders import PyPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import InMemoryVectorStore
+
 
 SECTORS_API_KEY = st.secrets["SECTORS_API_KEY"]
-GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
-
 
 def retrieve_from_endpoint(url: str) -> dict:
     """
@@ -104,58 +111,3 @@ def get_top_companies_ranked(dimension: str, top_n: int, year: int) -> list[dict
 
     return retrieve_from_endpoint(url)
 
-def get_finance_agent():
-
-    # Defined Tools
-    tools = [
-        get_company_overview,
-        get_top_companies_by_tx_volume,
-        get_daily_tx,
-        get_top_companies_ranked
-    ]
-
-    # Create the Prompt Template
-    prompt = ChatPromptTemplate.from_messages(
-        [
-            (
-                "system",
-                f"""
-                Answer the following queries, being as factual and analytical as you can. 
-                If you need the start and end dates but they are not explicitly provided, 
-                infer from the query. Whenever you return a list of names, return also the 
-                corresponding values for each name. If the volume was about a single day, 
-                the start and end parameter should be the same. Note that the endpoint for 
-                performance since IPO has only one required parameter, which is the stock. 
-                Today's date is {datetime.today().strftime("%Y-%m-%d")}
-                """
-            ),
-            MessagesPlaceholder(variable_name="chat_history"),
-            ("human", "{input}"),
-            MessagesPlaceholder("agent_scratchpad"),
-        ]
-    )
-
-    # Initializing the LLM
-    llm = ChatGroq(
-        temperature=0,
-        model_name="llama-3.3-70b-versatile",
-        groq_api_key=GROQ_API_KEY,
-    )
-
-    # Create the Agent and AgentExecutor
-    agent = create_tool_calling_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
-
-    # Add Memory to the AgentExecutor
-    def get_session_history(session_id: str):
-
-        return StreamlitChatMessageHistory(key=session_id)
-    
-    agent_with_memory = RunnableWithMessageHistory(
-        agent_executor,
-        get_session_history,
-        input_messages_key="input",
-        history_messages_key="chat_history",
-    )
-
-    return agent_with_memory
