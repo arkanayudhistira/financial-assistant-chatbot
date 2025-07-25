@@ -2,4 +2,10 @@ streamlit
 langchain
 langchain_groq
 langchain_community
+langchain_experimental
+langchain_google_genai
+sentence-transformers
 requests
+openpyxl
+tabulate
+pypdf
