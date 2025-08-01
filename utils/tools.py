@@ -1,22 +1,7 @@
-import json
 import requests
-from datetime import datetime
 import streamlit as st
-import pandas as pd
-import os
 
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_groq import ChatGroq
 from langchain_core.tools import tool
-from langchain.agents import create_tool_calling_agent, AgentExecutor
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_community.chat_message_histories import StreamlitChatMessageHistory
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-
-from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-from langchain_community.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.vectorstores import InMemoryVectorStore
 
 
 SECTORS_API_KEY = st.secrets["SECTORS_API_KEY"]
@@ -51,15 +36,17 @@ def retrieve_from_endpoint(url: str) -> dict:
 
 
 @tool
-def get_company_overview(stock: str) -> dict:
+def get_company_report(stock: str, sections: str) -> dict:
     """
-    Get company overview
+    Get company report of a given ticker, organized into distinct sections (overview, financials, valuation, dividend).
+    Use this tool to retrieve metrics for a given company.
     
     @param stock: The stock symbol of the company
-    @return: The company overview
+    @param sections: Sections of the company report that is to be retrieved (overview, financials, valuation, dividend)
+    @return: The company report
     """
 
-    url = f"https://api.sectors.app/v1/company/report/{stock}/?sections=overview"
+    url = f"https://api.sectors.app/v1/company/report/{stock}/?sections={sections}"
 
     return retrieve_from_endpoint(url)
 
@@ -67,11 +54,11 @@ def get_company_overview(stock: str) -> dict:
 @tool
 def get_top_companies_by_tx_volume(start_date: str, end_date: str, top_n: int = 5) -> dict:
     """
-    Get top companies by transaction volume
+    Return a list of the most traded tickers based on transaction volume on a certain interval (up to 90 days)
 
     @param start_date: The start date in YYYY-MM-DD format
     @param end_date: The end date in YYYY-MM-DD format
-    @param top_n: Number of stocks to show
+    @param top_n: Number of stocks to show (maximum: 10)
     @return: A list of most traded IDX stocks based on transaction volume for a certain interval
     """
     url = f"https://api.sectors.app/v1/most-traded/?start={start_date}&end={end_date}&n_stock={top_n}"
@@ -81,12 +68,13 @@ def get_top_companies_by_tx_volume(start_date: str, end_date: str, top_n: int = 
 @tool
 def get_daily_tx(stock: str, start_date: str, end_date: str) -> list[dict]:
     """
-    Get daily transaction for a stock
+    Return daily transaction data of a given ticker that includes the price, volume, 
+    and market cap of the stock on a certain interval (up to 90 days).
 
     @param stock: The stock 4 letter symbol of the company
     @param start_date: The start date in YYYY-MM-DD format
     @param end_date: The end date in YYYY-MM-DD format
-    @return: Daily transaction data of a given ticker for a certain interval
+    @return: Daily transaction data that includes the price, volume, and market cap of a given stock for a certain interval
     """
     url = f"https://api.sectors.app/v1/daily/{stock}/?start={start_date}&end={end_date}"
 
@@ -96,13 +84,15 @@ def get_daily_tx(stock: str, start_date: str, end_date: str) -> list[dict]:
 @tool
 def get_top_companies_ranked(dimension: str, top_n: int, year: int) -> list[dict]:
     """
-    Return a list of top companies (symbol) based on certain dimension 
-    (dividend yield, total dividend, revenue, earnings, market cap,...)
+    Return a list of top tickers in a given year based on selected classifications 
+    (dividend yield, total dividend, revenue, earnings, market cap, PB ratio, PE ratio, or PS ratio).
 
-    @param dimension: The dimension to rank the companies by, one of: 
-    "dividend_yield", "total_dividend", "revenue", "earnings", "market_cap", ...
 
-    @param top_n: Number of stocks to show
+    @param dimension: The dimension to rank the companies by, Defaults to "all", 
+    "dividend_yield", "total_dividend", "revenue", "earnings", "market_cap", "pb", "pe", "ps".
+
+
+    @param top_n: Number of stocks to show (default: 5)
     @param year: Year of ranking, always show the most recent full calendar year that has ended
     @return: A list of top tickers in a given year based on certain classification
     """
@@ -110,4 +100,6 @@ def get_top_companies_ranked(dimension: str, top_n: int, year: int) -> list[dict
     url = f"https://api.sectors.app/v1/companies/top/?classifications={dimension}&n_stock={top_n}&year={year}"
 
     return retrieve_from_endpoint(url)
+
+
 

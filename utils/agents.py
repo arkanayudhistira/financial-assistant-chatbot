@@ -8,22 +8,19 @@ import tempfile
 import asyncio
 
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_groq import ChatGroq
-from langchain_core.tools import tool
 from langchain.agents import create_tool_calling_agent, AgentExecutor
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
 
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
-from langchain_community.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import InMemoryVectorStore
 from langchain_core.tools import create_retriever_tool
 
 
 from utils.tools import (
-    get_company_overview,
+    get_company_report,
     get_top_companies_by_tx_volume,
     get_daily_tx,
     get_top_companies_ranked
@@ -37,7 +34,7 @@ def get_finance_agent():
 
     # Defined Tools
     tools = [
-        get_company_overview,
+        get_company_report,
         get_top_companies_by_tx_volume,
         get_daily_tx,
         get_top_companies_ranked
@@ -49,13 +46,22 @@ def get_finance_agent():
             (
                 "system",
                 f"""
-                Answer the following queries, being as factual and analytical as you can. 
-                If you need the start and end dates but they are not explicitly provided, 
-                infer from the query. Whenever you return a list of names, return also the 
-                corresponding values for each name. If the volume was about a single day, 
-                the start and end parameter should be the same. Note that the endpoint for 
-                performance since IPO has only one required parameter, which is the stock. 
+                You are a financial AI assistant for the Indonesian stock market. 
+
+                Your job is to give accurate, data-driven analysis and investment advice using the tools provided and 
+                analyze stocks and investment strategies by assessing company financial metrics and industry performance
+
+                You need to follow these rules:
+                - Only use data from tools provided. Never guess or use outside data.  
+                - If data is not available, say so clearly and do not make it up. Suggest alternative sources if possible.  
+                - Use IDR as the default currency, use the `Rp`. 
+                - For big numbers, use this format: `123`, `123.456`, `123,45 M`, `123,45 B`, `123,45 T` 
+                - Always give clear explanations and data-backed recommendations
+                - Add follow-up questions to help users dive deeper  
+                - Use beautiful markdown formatting in your responses  
+
                 Today's date is {datetime.today().strftime("%Y-%m-%d")}
+
                 """
             ),
             MessagesPlaceholder(variable_name="chat_history"),
@@ -120,9 +126,9 @@ def get_pdf_document_agent(docs):
 
     _ = vector_store.add_documents(documents=splitted_docs)
 
-    tools = create_retriever_tool(vector_store.as_retriever(),
-                                    name = "pdf_document_retriever",
-                                    description= "Retrieve PDF as context to accurately and concisely answer the user's question")
+    tools = create_retriever_tool(vector_store.as_retriever(search_kwargs={'k': 5}),
+                                  name = "pdf_document_retriever",
+                                  description= "Retrieve PDF as context to accurately and concisely answer the user's question")
 
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -132,28 +138,16 @@ def get_pdf_document_agent(docs):
                 You are a helpful and detail-oriented assistant. 
                 You are provided with a tool to retrieve a PDF document from a vector store. 
                 Use the context to accurately and concisely answer the user's question. 
-                If you don't know the answer, just say that you don't know, don't try to make up an answer.
+
+                You need to follow these rules:
+                - Only use data from tools provided. Never guess or use outside data.  
+                - If data is not available, say so clearly and do not make it up. Suggest alternative sources if possible.  
+                - Add follow-up questions to help users dive deeper  
                 '''
             ),
             MessagesPlaceholder("chat_history"),
             (
                 "human", "{input}"
-                # '''          
-                # PDF Document:
-
-                # {context}
-
-                # PDF Metadata:
-
-                # {metadata}
-
-                # Question: {input}
-
-                # Answer:
-
-
-                
-                # '''
             ),
             MessagesPlaceholder("agent_scratchpad")
         ]
@@ -165,7 +159,6 @@ def get_pdf_document_agent(docs):
         google_api_key=st.secrets["GOOGLE_API_KEY"],
     )
 
-    # chain = prompt | llm
 
     # Create the Agent and AgentExecutor
     agent = create_tool_calling_agent(llm, [tools], prompt)

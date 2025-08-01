@@ -1,21 +1,8 @@
-import json
-import requests
-from datetime import datetime
 import streamlit as st
 import pandas as pd
 import os
 import tempfile
-import asyncio
 
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_groq import ChatGroq
-from langchain_core.tools import tool
-from langchain.agents import create_tool_calling_agent, AgentExecutor
-from langchain_core.runnables.history import RunnableWithMessageHistory
-from langchain_community.chat_message_histories import StreamlitChatMessageHistory
-from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
-
-from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 from langchain_community.document_loaders import PyPDFLoader
 
 from utils.agents import (
@@ -23,10 +10,17 @@ from utils.agents import (
     get_pdf_document_agent
 )
 
-uploaded_file = st.sidebar.file_uploader('Upload File', type=['pdf', 'csv', "xls", "xlsx", "json"])
+from utils.dialogs import document_dialog
+
+uploaded_file = st.sidebar.file_uploader('Upload Document', type=['pdf', 'csv', "xls", "xlsx", "json"])
+
+st.sidebar.markdown("#")
+
+if st.sidebar.button("⚙️ How To Use", use_container_width=True):
+    document_dialog()
 
 if not uploaded_file:
-    st.error("Please Upload a File Before Asking a Question")
+    st.error("Please upload a document before asking a question!")
 else:
     ext = os.path.splitext(uploaded_file.name)[1].lower()
 
