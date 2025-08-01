@@ -20,6 +20,26 @@ session_id = st.sidebar.selectbox("Chats", options=selectbox_selection, index=le
 
 chat_history = StreamlitChatMessageHistory(key=session_id)
 
+if 'ai_introduction' not in st.session_state:
+    # Code to run only once per session
+    st.session_state.ai_introduction = True
+    chat_history.add_ai_message(
+        '''
+        Hello! I'm your AI financial assistant for the Indonesian stock market. I can help you with:
+
+        - Analyzing company financial metrics: Get detailed reports on specific companies.
+        - Tracking industry performance: See how different sectors are performing.
+        - Providing investment advice: Get data-backed recommendations.
+
+        To get started, tell me what you're interested in. For example, you can ask me:
+
+        - "What are the top companies by market cap in 2024?"
+        - "Show me the financial report for TLKM."
+        - "What are the most traded stocks in the last 7 days?"
+
+        Let me know how I can help you today!
+        ''')
+        
 for message in chat_history.messages:
     with st.chat_message(message.type):
         st.markdown(message.content)
